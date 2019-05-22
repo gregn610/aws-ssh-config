@@ -59,35 +59,35 @@ def generate_id(instance, tags_filter, region):
     return instance_id
 
 
-def print_config(ami_image_id, args, host_id, instance, ip_addr):
-    if instance['InstanceId']:
-        print('# id: ' + instance['InstanceId'])
+def print_config(ami_image_id, host_id, instance_instance_id, instance_image_id, instance_keyname, ip_addr, keydir, ssh_key_name, no_identities_only, strict_hostkey_checking, proxy):
+    if instance_instance_id:
+        print('# id: ' + instance_instance_id)
     print('Host ' + host_id)
     print('    HostName ' + ip_addr)
-    if ami_image_id[instance['ImageId']] is not None:
-        print('    User ' + ami_image_id[instance['ImageId']])
-    if args.keydir:
-        key_dir = args.keydir
+    if ami_image_id is not None:
+        print('    User ' + ami_image_id)
+    if keydir:
+        key_dir = keydir
     else:
         key_dir = '~/.ssh/'
-    if args.ssh_key_name:
+    if ssh_key_name:
         print('    IdentityFile '
-              + key_dir + args.ssh_key_name + '.pem')
+              + key_dir + ssh_key_name + '.pem')
     else:
         key_name = AMI_IDS_TO_KEY.get(
-            instance['ImageId'],
-            instance['KeyName'])
+            instance_image_id,
+            instance_keyname)
 
         print('    IdentityFile '
               + key_dir + key_name.replace(' ', '_') + '.pem')
-    if not args.no_identities_only:
+    if not no_identities_only:
         # ensure ssh-agent keys don't flood
         # when we know the right file to use
         print('    IdentitiesOnly yes')
-    if not args.strict_hostkey_checking:
+    if not strict_hostkey_checking:
         print('    StrictHostKeyChecking no')
-    if args.proxy:
-        print('    ProxyCommand ssh ' + args.proxy + ' -W %h:%p')
+    if proxy:
+        print('    ProxyCommand ssh ' + proxy + ' -W %h:%p')
     print('')
 
 
@@ -260,7 +260,16 @@ def main():
             host_id = args.prefix + instance_id + args.postfix
             host_id = host_id.replace(' ', '_').lower()  # get rid of spaces
 
-            print_config(amis[instance['ImageId']], args, host_id, instance['Instances'][0], ip_addr)
+            print_config(amis[instance['Instances'][0]['ImageId']], host_id,
+                         instance['Instances'][0]['InstanceId'],
+                         instance['Instances'][0]['ImageId'],
+                         instance['Instances'][0]['KeyName'],
+                         ip_addr,
+                         args.keydir,
+                         args.ssh_key_name,
+                         args.no_identities_only,
+                         args.strict_hostkey_checking,
+                         args.proxy)
 
 
 
