@@ -59,13 +59,13 @@ def generate_id(instance, tags_filter, region):
     return instance_id
 
 
-def print_config(amis, args, host_id, instance, ip_addr):
+def print_config(ami_image_id, args, host_id, instance, ip_addr):
     if instance['InstanceId']:
         print('# id: ' + instance['InstanceId'])
     print('Host ' + host_id)
     print('    HostName ' + ip_addr)
-    if amis[instance['ImageId']] is not None:
-        print('    User ' + amis[instance['ImageId']])
+    if ami_image_id[instance['ImageId']] is not None:
+        print('    User ' + ami_image_id[instance['ImageId']])
     if args.keydir:
         key_dir = args.keydir
     else:
@@ -260,7 +260,7 @@ def main():
             host_id = args.prefix + instance_id + args.postfix
             host_id = host_id.replace(' ', '_').lower()  # get rid of spaces
 
-            print_config(amis, args, host_id, instance['Instances'][0], ip_addr)
+            print_config(amis[instance['ImageId']], args, host_id, instance['Instances'][0], ip_addr)
 
 
 
