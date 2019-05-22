@@ -33,15 +33,16 @@ def generate_id(instance, tags_filter, region):
 
     if tags_filter is not None:
         for tag in tags_filter.split(','):
-            for aws_tag in instance['Instances'][0].get('Tags', []):
-                value = aws_tag['Value']
-                if value:
-                    if not instance_id:
-                        instance_id = value
-                    else:
-                        instance_id += '-' + value
+            for aws_tag in instance.get('Tags', []):
+                if aws_tag['Key'] == tag:
+                    value = aws_tag['Value']
+                    if value:
+                        if not instance_id:
+                            instance_id = value
+                        else:
+                            instance_id += '-' + value
     else:
-        for tag in instance['Instances'][0].get('Tags', []):
+        for tag in instance.get('Tags', []):
             if not (tag['Key']).startswith('aws'):
                 if not instance_id:
                     instance_id = tag['Value']
@@ -49,7 +50,7 @@ def generate_id(instance, tags_filter, region):
                     instance_id += '-' + tag['Value']
 
     if not instance_id:
-        instance_id = instance['Instances'][0]['InstanceId']
+        instance_id = instance['InstanceId']
 
     if region:
         instance_id += '-' + instance[
@@ -156,7 +157,7 @@ def main():
 
             instances[instance['Instances'][0]['LaunchTime']].append(instance)
 
-            instance_id = generate_id(instance, args.tags, args.region)
+            instance_id = generate_id(instance['Instances'][0], args.tags, args.region)
 
             if instance_id not in counts_total:
                 counts_total[instance_id] = 0
@@ -217,7 +218,7 @@ def main():
                             % instance['Instances'][0]['InstanceId'])
                         continue
 
-            instance_id = generate_id(instance, args.tags, args.region)
+            instance_id = generate_id(instance['Instances'][0], args.tags, args.region)
 
             if counts_total[instance_id] != 1:
                 counts_incremental[instance_id] += 1
