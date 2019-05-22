@@ -27,7 +27,6 @@ BLACKLISTED_REGIONS = [
 ]
 
 
-
 def handle_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -164,6 +163,9 @@ def process_aws(args_profile,
                 args_private,
                 args_prefix,
                 args_postfix):
+    """
+    :return: a list of (ami_image_id, host_id, instance_id, image_id, key_name, ip_addr) tuples
+    """
     ret = []
     instances = {}
     counts_total = {}
@@ -177,7 +179,6 @@ def process_aws(args_profile,
         regions = boto3.client('ec2').describe_regions()['Regions']
 
     for region in regions:
-
         if (args_white_list_region
                 and region['RegionName'] not in args_white_list_region):
             continue
@@ -240,9 +241,7 @@ def process_aws(args_profile,
                                 'ImageId'] if len(image['Images']) and image['Images'][0] is not None else instance[
                                 'Instances'][0]['ImageId']
                             sys.stderr.write(
-                                'Can\'t lookup user for AMI \''
-                                + image_label + '\', add a rule to '
-                                                'the script\n')
+                                'Can\'t lookup user for AMI \'' + image_label + '\', add a rule to the script\n')
     for k in sorted(instances):
         for instance in instances[k]:
             if args_private:
@@ -270,13 +269,15 @@ def process_aws(args_profile,
             host_id = args_prefix + instance_id + args_postfix
             host_id = host_id.replace(' ', '_').lower()  # get rid of spaces
 
-            ret.append((amis[instance['Instances'][0]['ImageId']],
-                    host_id,
-                    instance['Instances'][0]['InstanceId'],
-                    instance['Instances'][0]['ImageId'],
-                    instance['Instances'][0]['KeyName'],
-                    ip_addr,
-                    ))
+            ret.append(
+                (amis[instance['Instances'][0]['ImageId']],
+                 host_id,
+                 instance['Instances'][0]['InstanceId'],
+                 instance['Instances'][0]['ImageId'],
+                 instance['Instances'][0]['KeyName'],
+                 ip_addr,
+                 )
+            )
     return ret
 
 
@@ -306,6 +307,7 @@ def main():
                      args.no_identities_only,
                      args.strict_hostkey_checking,
                      args.proxy)
+
 
 if __name__ == '__main__':
     main()
