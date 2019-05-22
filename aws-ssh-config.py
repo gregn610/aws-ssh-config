@@ -92,11 +92,6 @@ def print_config(ami_image_id, host_id, instance_id, image_id, keyname,
 
 
 def process_aws(args_profile,
-                args_keydir,
-                args_ssh_key_name,
-                args_no_identities_only,
-                args_strict_hostkey_checking,
-                args_proxy,
                 args_tags_filter,
                 args_region,
                 args_white_list_region,
@@ -105,6 +100,7 @@ def process_aws(args_profile,
                 args_private,
                 args_prefix,
                 args_postfix):
+    ret = []
     instances = {}
     counts_total = {}
     counts_incremental = {}
@@ -210,16 +206,14 @@ def process_aws(args_profile,
             host_id = args_prefix + instance_id + args_postfix
             host_id = host_id.replace(' ', '_').lower()  # get rid of spaces
 
-            print_config(amis[instance['Instances'][0]['ImageId']], host_id,
-                         instance['Instances'][0]['InstanceId'],
-                         instance['Instances'][0]['ImageId'],
-                         instance['Instances'][0]['KeyName'],
-                         ip_addr,
-                         args_keydir,
-                         args_ssh_key_name,
-                         args_no_identities_only,
-                         args_strict_hostkey_checking,
-                         args_proxy)
+            ret.append((amis[instance['Instances'][0]['ImageId']],
+                    host_id,
+                    instance['Instances'][0]['InstanceId'],
+                    instance['Instances'][0]['ImageId'],
+                    instance['Instances'][0]['KeyName'],
+                    ip_addr,
+                    ))
+    return ret
 
 
 def main():
@@ -288,20 +282,24 @@ def main():
     print('# ')
     print('')
 
-    process_aws(args_profile=args.profile,
-                args_keydir=args.keydir,
-                args_ssh_key_name=args.ssh_key_name,
-                args_no_identities_only=args.no_identities_only,
-                args_strict_hostkey_checking=args.strict_hostkey_checking,
-                args_proxy=args.proxy,
-                args_tags_filter=args.tags,
-                args_region=args.region,
-                args_white_list_region=args.white_list_region,
-                args_user=args.user,
-                args_default_user=args.default_user,
-                args_private=args.private,
-                args_prefix=args.prefix,
-                args_postfix=args.postfix, )
+    ret = process_aws(
+        args.profile,
+        args.tags,
+        args.region,
+        args.white_list_region,
+        args.user,
+        args.default_user,
+        args.private,
+        args.prefix,
+        args.postfix, )
+
+    for (ami_image_id, host_id, instance_id, image_id, key_name, ip_addr) in ret:
+        print_config(ami_image_id, host_id, instance_id, image_id, key_name, ip_addr,
+                     args.keydir,
+                     args.ssh_key_name,
+                     args.no_identities_only,
+                     args.strict_hostkey_checking,
+                     args.proxy)
 
 
 if __name__ == '__main__':
