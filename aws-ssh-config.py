@@ -59,9 +59,10 @@ def generate_id(instance, tags_filter, region):
     return instance_id
 
 
-def print_config(ami_image_id, host_id, instance_instance_id, instance_image_id, instance_keyname, ip_addr, keydir, ssh_key_name, no_identities_only, strict_hostkey_checking, proxy):
-    if instance_instance_id:
-        print('# id: ' + instance_instance_id)
+def print_config(ami_image_id, host_id, instance_id, image_id, keyname,
+                 ip_addr, keydir, ssh_key_name, no_identities_only, strict_hostkey_checking, proxy):
+    if instance_id:
+        print('# id: ' + instance_id)
     print('Host ' + host_id)
     print('    HostName ' + ip_addr)
     if ami_image_id is not None:
@@ -75,8 +76,8 @@ def print_config(ami_image_id, host_id, instance_instance_id, instance_image_id,
               + key_dir + ssh_key_name + '.pem')
     else:
         key_name = AMI_IDS_TO_KEY.get(
-            instance_image_id,
-            instance_keyname)
+            image_id,
+            keyname)
 
         print('    IdentityFile '
               + key_dir + key_name.replace(' ', '_') + '.pem')
