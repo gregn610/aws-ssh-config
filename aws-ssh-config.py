@@ -59,6 +59,38 @@ def generate_id(instance, tags_filter, region):
     return instance_id
 
 
+def print_config(amis, args, host_id, instance, ip_addr):
+    if instance['InstanceId']:
+        print('# id: ' + instance['InstanceId'])
+    print('Host ' + host_id)
+    print('    HostName ' + ip_addr)
+    if amis[instance['ImageId']] is not None:
+        print('    User ' + amis[instance['ImageId']])
+    if args.keydir:
+        key_dir = args.keydir
+    else:
+        key_dir = '~/.ssh/'
+    if args.ssh_key_name:
+        print('    IdentityFile '
+              + key_dir + args.ssh_key_name + '.pem')
+    else:
+        key_name = AMI_IDS_TO_KEY.get(
+            instance['ImageId'],
+            instance['KeyName'])
+
+        print('    IdentityFile '
+              + key_dir + key_name.replace(' ', '_') + '.pem')
+    if not args.no_identities_only:
+        # ensure ssh-agent keys don't flood
+        # when we know the right file to use
+        print('    IdentitiesOnly yes')
+    if not args.strict_hostkey_checking:
+        print('    StrictHostKeyChecking no')
+    if args.proxy:
+        print('    ProxyCommand ssh ' + args.proxy + ' -W %h:%p')
+    print('')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -134,6 +166,7 @@ def main():
         regions = session.client('ec2').describe_regions()['Regions']
     else:
         regions = boto3.client('ec2').describe_regions()['Regions']
+
     for region in regions:
         if (args.white_list_region
                 and region['RegionName'] not in args.white_list_region):
@@ -224,42 +257,11 @@ def main():
                 counts_incremental[instance_id] += 1
                 instance_id += '-' + str(counts_incremental[instance_id])
 
-            hostid = args.prefix + instance_id + args.postfix
-            hostid = hostid.replace(' ', '_')  # get rid of spaces
+            host_id = args.prefix + instance_id + args.postfix
+            host_id = host_id.replace(' ', '_').lower()  # get rid of spaces
 
-            if instance['Instances'][0]['InstanceId']:
-                print('# id: ' + instance['Instances'][0]['InstanceId'])
-            print('Host ' + hostid)
-            print('    HostName ' + ip_addr)
+            print_config(amis, args, host_id, instance['Instances'][0], ip_addr)
 
-            if amis[instance['Instances'][0]['ImageId']] is not None:
-                print('    User ' + amis[instance['Instances'][0]['ImageId']])
-
-            if args.keydir:
-                keydir = args.keydir
-            else:
-                keydir = '~/.ssh/'
-
-            if args.ssh_key_name:
-                print('    IdentityFile '
-                      + keydir + args.ssh_key_name + '.pem')
-            else:
-                key_name = AMI_IDS_TO_KEY.get(
-                    instance['Instances'][0]['ImageId'],
-                    instance['Instances'][0]['KeyName'])
-
-                print('    IdentityFile '
-                      + keydir + key_name.replace(' ', '_') + '.pem')
-
-            if not args.no_identities_only:
-                # ensure ssh-agent keys don't flood
-                # when we know the right file to use
-                print('    IdentitiesOnly yes')
-            if not args.strict_hostkey_checking:
-                print('    StrictHostKeyChecking no')
-            if args.proxy:
-                print('    ProxyCommand ssh ' + args.proxy + ' -W %h:%p')
-            print('')
 
 
 if __name__ == '__main__':
