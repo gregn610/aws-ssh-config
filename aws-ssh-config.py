@@ -170,7 +170,7 @@ def process_aws(args_profile,
     instances = {}  # dict keyed on launchtime, value is list[]
     counts_total = {}
     counts_incremental = {}
-    amis = AMI_IDS_TO_USER.copy() # ToDo: Global
+    amis = AMI_IDS_TO_USER.copy()  # ToDo: Global
 
     if args_profile:
         session = boto3.Session(profile_name=args_profile)
@@ -191,78 +191,80 @@ def process_aws(args_profile,
 
         # ToDo: This needs to iterate ['Instances'] because more than on instance can be in a launch_request
         for launch_request in ec2_service.describe_instances()['Reservations']:
-            if launch_request['Instances'][0]['State']['Name'] != 'running':
-                continue
+            for res_instance in launch_request['Instances']:
+                if res_instance['State']['Name'] != 'running':
+                    continue
 
-            if launch_request['Instances'][0].get('KeyName', None) is None: # ToDo: dropping tagless instances ???
-                continue
+                if res_instance.get('KeyName', None) is None: # ToDo: dropping tagless instances ???
+                    continue
 
-            if launch_request['Instances'][0]['LaunchTime'] not in instances:
-                instances[launch_request['Instances'][0]['LaunchTime']] = []
+                if res_instance['LaunchTime'] not in instances:
+                    instances[res_instance['LaunchTime']] = []
 
-            instances[launch_request['Instances'][0]['LaunchTime']].append(launch_request)
+                instances[res_instance['LaunchTime']].append(res_instance)
 
-            host_id = generate_id(launch_request['Instances'][0], args_tags_filter, args_region)
+                host_id = generate_id(res_instance, args_tags_filter, args_region)
 
-            if host_id not in counts_total:
-                counts_total[host_id] = 0
-                counts_incremental[host_id] = 0
+                if host_id not in counts_total:
+                    counts_total[host_id] = 0
+                    counts_incremental[host_id] = 0
 
-            counts_total[host_id] += 1
+                counts_total[host_id] += 1
 
-            if args_user:
-                amis[launch_request['Instances'][0]['ImageId']] = args_user
-            else:
-                if not launch_request['Instances'][0]['ImageId'] in amis:
-                    image = ec2_service.describe_images(
-                        Filters=[
-                            {
-                                'Name': 'image-id',
-                                'Values': [launch_request['Instances'][0]['ImageId']]
-                            }
-                        ]
-                    )
+                if args_user:
+                    amis[res_instance['ImageId']] = args_user
+                else:
+                    if not res_instance['ImageId'] in amis:
+                        image = ec2_service.describe_images(
+                            Filters=[
+                                {
+                                    'Name': 'image-id',
+                                    'Values': [res_instance['ImageId']]
+                                }
+                            ]
+                        )
 
-                    for ami, user in AMI_NAMES_TO_USER.items():
-                        regexp = re.compile(ami)
-                        if (len(image['Images']) > 0
-                                and regexp.match(image['Images'][0]['Name'])):
-                            amis[launch_request['Instances'][0]['ImageId']] = user
-                            break
+                        for ami, user in AMI_NAMES_TO_USER.items():
+                            regexp = re.compile(ami)
+                            if (len(image['Images']) > 0
+                                    and regexp.match(image['Images'][0]['Name'])):
+                                amis[res_instance['ImageId']] = user
+                                break
 
-                    if launch_request['Instances'][0]['ImageId'] not in amis:
+                        if res_instance['ImageId'] not in amis:
 
-                        amis[
-                            launch_request['Instances'][0]['ImageId']
-                        ] = args_default_user
-                        if args_default_user is None:
-                            image_label = image[
-                                'Images'
-                            ][0][
-                                'ImageId'] if len(image['Images']) and image['Images'][0] is not None else launch_request[
-                                'Instances'][0]['ImageId']
-                            sys.stderr.write(
-                                'Can\'t lookup user for AMI \'' + image_label + '\', add a rule to the script\n')
+                            amis[
+                                res_instance['ImageId']
+                            ] = args_default_user
+                            if args_default_user is None:
+                                image_label = image[
+                                    'Images'
+                                ][0][
+                                    'ImageId'] if len(image['Images']) and image['Images'][0] is not None else launch_request[
+                                    'Instances'][0]['ImageId']
+                                sys.stderr.write(
+                                    'Can\'t lookup user for AMI \'' + image_label + '\', add a rule to the script\n')
+
     # ToDo: for k, instance in instances.items():
     for k in sorted(instances):
-        for launch_request in instances[k]:
+        for res_instance in instances[k]:
             if args_private:
-                if launch_request['Instances'][0]['PrivateIpAddress']:
-                    ip_addr = launch_request['Instances'][0]['PrivateIpAddress']
+                if res_instance['PrivateIpAddress']:
+                    ip_addr = res_instance['PrivateIpAddress']
             else:
                 try:
-                    ip_addr = launch_request['Instances'][0]['PublicIpAddress']
+                    ip_addr = res_instance['PublicIpAddress']
                 except KeyError:
                     try:
-                        ip_addr = launch_request['Instances'][0]['PrivateIpAddress']
+                        ip_addr = res_instance['PrivateIpAddress']
                     except KeyError:
                         sys.stderr.write(
                             'Cannot lookup ip address for instance %s,'
                             ' skipped it.'
-                            % launch_request['Instances'][0]['InstanceId'])
+                            % res_instance['InstanceId'])
                         continue
 
-            host_id = generate_id(launch_request['Instances'][0], args_tags_filter, args_region)
+            host_id = generate_id(res_instance, args_tags_filter, args_region)
 
             if counts_total[host_id] != 1:
                 counts_incremental[host_id] += 1
@@ -272,11 +274,11 @@ def process_aws(args_profile,
             ssh_config_id = ssh_config_id.replace(' ', '_').lower()  # get rid of spaces
 
             ret.append(
-                (amis[launch_request['Instances'][0]['ImageId']],
+                (amis[res_instance['ImageId']],
                  ssh_config_id,
-                 launch_request['Instances'][0]['InstanceId'],
-                 launch_request['Instances'][0]['ImageId'],
-                 launch_request['Instances'][0]['KeyName'],
+                 res_instance['InstanceId'],
+                 res_instance['ImageId'],
+                 res_instance['KeyName'],
                  ip_addr,
                  )
             )
