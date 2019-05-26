@@ -1,10 +1,38 @@
 #!/usr/bin/env python
 
-import argparse
+'''aws_ssh_config
+Generate an SSH config file from AWS instances
+
+Usage:
+    aws-ssh-config.py [options]
+
+Options:
+  -h, --help                  show this help message and exit
+  --default-user DEFAULT_USER Default ssh username to useif it can't be detected from AMI name
+  --keydir KEYDIR             Location of private keys
+  --no-identities-only        Do not include IdentitiesOnly=yes in ssh config; may cause connection refused if using ssh-agent
+  --postfix POSTFIX           Specify a postfix to append to all host names
+  --prefix PREFIX             Specify a prefix to prepend to all host names
+  --private                   Use private IP addresses (public are used by default)
+  --profile PROFILE           Specify AWS credential profile to use
+  --proxy PROXY               Specify a bastion host for ProxyCommand
+  --region                    Append the region name at the end of the concatenation
+  --ssh-key-name SSH_KEY_NAME Override the ssh key to use
+  --strict-hostkey-checking   Do not include StrictHostKeyChecking=no in ssh config
+  --tags TAGS                 Comma-separated list of tag names to be considered for concatenation. If omitted, all tags will be used
+  --user USER                 Override the ssh username for all hosts
+  --whitelist-region WHITE_LIST_REGION[,WHITE_LIST_REGION ...] Comma separated regions to be included. If omitted, all regions are considered
+
+
+'''
+import os
+
+from docopt import docopt
 import re
 import sys
 import time
 import boto3
+import logging
 
 AMI_NAMES_TO_USER = {
     'amzn': 'ec2-user',
@@ -27,75 +55,20 @@ BLACKLISTED_REGIONS = [
 ]
 
 
-def handle_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--default-user',
-        help='Default ssh username to use'
-             'if it can\'t be detected from AMI name')
-    parser.add_argument(
-        '--keydir',
-        default='~/.ssh/',
-        help='Location of private keys')
-    parser.add_argument(
-        '--no-identities-only',
-        action='store_true',
-        help='Do not include IdentitiesOnly=yes in ssh config; may cause'
-             ' connection refused if using ssh-agent')
-    parser.add_argument(
-        '--postfix',
-        default='',
-        help='Specify a postfix to append to all host names')
-    parser.add_argument(
-        '--prefix',
-        default='',
-        help='Specify a prefix to prepend to all host names')
-    parser.add_argument(
-        '--private',
-        action='store_true',
-        help='Use private IP addresses (public are used by default)')
-    parser.add_argument(
-        '--profile',
-        help='Specify AWS credential profile to use')
-    parser.add_argument(
-        '--proxy',
-        default='',
-        help='Specify a bastion host for ProxyCommand')
-    parser.add_argument(
-        '--region',
-        action='store_true',
-        help='Append the region name at the end of the concatenation')
-    parser.add_argument(
-        '--ssh-key-name',
-        default='',
-        help='Override the ssh key to use')
-    parser.add_argument(
-        '--strict-hostkey-checking',
-        action='store_true',
-        help='Do not include StrictHostKeyChecking=no in ssh config')
-    parser.add_argument(
-        '--tags',
-        help='A comma-separated list of tag names to be considered for'
-             ' concatenation. If omitted, all tags will be used')
-    parser.add_argument(
-        '--user',
-        help='Override the ssh username for all hosts')
-    parser.add_argument(
-        '--white-list-region',
-        default='',
-        help='Which regions must be included. If omitted, all regions'
-             ' are considered',
-        nargs='+')
-    args = parser.parse_args()
-    return args
-
 
 def generate_id(instance, tags_filter, region):
+    """
+    Use instance details to build the SSH host name
+    :param instance:
+    :param tags_filter:
+    :param region:
+    :return:
+    """
     instance_id = ''
 
     if tags_filter is not None:
-        for t_filter in tags_filter.split(','):
-            for aws_tag in instance.get('Tags', []):  # ToDo: Swap loop order to make less calls
+        for aws_tag in instance.get('Tags', []):
+            for t_filter in tags_filter.split(','):
                 if aws_tag['Key'] == t_filter:
                     value = aws_tag['Value']
                     if value:
@@ -123,29 +96,29 @@ def generate_id(instance, tags_filter, region):
 
 def print_config(ami_image_id, host_id, instance_id, image_id, keyname,
                  ip_addr, keydir, ssh_key_name, no_identities_only, strict_hostkey_checking, proxy):
+    """
+    Prints the lines to build an SSH config file
+    :return: None
+    """
+
+    logging.debug('print_config()')
     if instance_id:
         print('# id: ' + instance_id)
     print('Host ' + host_id)
     print('    HostName ' + ip_addr)
     if ami_image_id is not None:
         print('    User ' + ami_image_id)
-    if keydir:
-        key_dir = keydir
-    else:
-        key_dir = '~/.ssh/'
     if ssh_key_name:
-        print('    IdentityFile '
-              + key_dir + ssh_key_name + '.pem')
+        print('    IdentityFile ' + os.path.join(keydir, ssh_key_name + '.pem'))
     else:
         key_name = AMI_IDS_TO_KEY.get(
             image_id,
-            keyname)
+            keyname).replace(' ', '_')
 
         print('    IdentityFile '
-              + key_dir + key_name.replace(' ', '_') + '.pem')
+              + os.path.join(keydir, key_name + '.pem'))
     if not no_identities_only:
-        # ensure ssh-agent keys don't flood
-        # when we know the right file to use
+        # ensure ssh-agent keys don't flood when we know the right file to use
         print('    IdentitiesOnly yes')
     if not strict_hostkey_checking:
         print('    StrictHostKeyChecking no')
@@ -157,7 +130,7 @@ def print_config(ami_image_id, host_id, instance_id, image_id, keyname,
 def process_aws(args_profile,
                 args_tags_filter,
                 args_region,
-                args_white_list_region,
+                args_white_list_regions,
                 args_user,
                 args_default_user,
                 args_private,
@@ -166,11 +139,12 @@ def process_aws(args_profile,
     """
     :return: a list of (ami_image_id, host_id, instance_id, image_id, key_name, ip_addr) tuples
     """
+    logging.debug('process_aws()')
     ret = []
     instances = {}  # dict keyed on InstanceId, value is the instance
     counts_total = {}
     counts_incremental = {}
-    amis = AMI_IDS_TO_USER.copy()  # ToDo: Global
+    ami_usernames = AMI_IDS_TO_USER.copy()  # ToDo: Global
 
     if args_profile:
         session = boto3.Session(profile_name=args_profile)
@@ -179,8 +153,8 @@ def process_aws(args_profile,
         regions = boto3.client('ec2').describe_regions()['Regions']
 
     for region in regions:
-        if (args_white_list_region
-                and region['RegionName'] not in args_white_list_region):
+        if (args_white_list_regions
+                and region['RegionName'] not in args_white_list_regions.split(',')):
             continue
         if region['RegionName'] in BLACKLISTED_REGIONS:
             continue
@@ -208,9 +182,9 @@ def process_aws(args_profile,
                 counts_total[host_id] += 1
 
                 if args_user:
-                    amis[instance['ImageId']] = args_user
+                    ami_usernames[instance['ImageId']] = args_user
                 else:
-                    if not instance['ImageId'] in amis:
+                    if not instance['ImageId'] in ami_usernames:
                         image = ec2_service.describe_images(
                             Filters=[
                                 {
@@ -224,12 +198,12 @@ def process_aws(args_profile,
                             regexp = re.compile(ami)
                             if (len(image['Images']) > 0
                                     and regexp.match(image['Images'][0]['Name'])):
-                                amis[instance['ImageId']] = user
+                                ami_usernames[instance['ImageId']] = user
                                 break
 
-                        if instance['ImageId'] not in amis:
+                        if instance['ImageId'] not in ami_usernames:
 
-                            amis[
+                            ami_usernames[
                                 instance['ImageId']
                             ] = args_default_user
                             if args_default_user is None:
@@ -268,7 +242,7 @@ def process_aws(args_profile,
         ssh_config_id = ssh_config_id.replace(' ', '_').lower()  # get rid of spaces
 
         ret.append(
-            (amis[instance['ImageId']],
+            (ami_usernames[instance['ImageId']],
              ssh_config_id,
              instance['InstanceId'],
              instance['ImageId'],
@@ -279,8 +253,13 @@ def process_aws(args_profile,
     return ret
 
 
-def main():
-    args = handle_args()
+def main(args):
+    logging.debug('main()')
+    # neater than docopt [default: ]
+    for k in (
+            '--default-user', '--user', '--tags', '--prefix', '--postfix', '--keydir', '--proxy',
+            '--ssh-key-name', '--profile', '--whitelist-region', ):
+        if args[k] is None: args[k] = ''
 
     print('# Generated on ' + time.asctime(time.localtime(time.time())))
     print('# ' + ' '.join(sys.argv))
@@ -288,24 +267,28 @@ def main():
     print('')
 
     config_list = process_aws(
-        args.profile,
-        args.tags,
-        args.region,
-        args.white_list_region,
-        args.user,
-        args.default_user,
-        args.private,
-        args.prefix,
-        args.postfix, )
+        args['--profile'],
+        args['--tags'],
+        args['--region'],
+        args['--whitelist-region'],
+        args['--user'],
+        args['--default-user'],
+        args['--private'],
+        args['--prefix'],
+        args['--postfix'], )
 
     for (ami_image_id, host_id, instance_id, image_id, key_name, ip_addr) in config_list:
         print_config(ami_image_id, host_id, instance_id, image_id, key_name, ip_addr,
-                     args.keydir,
-                     args.ssh_key_name,
-                     args.no_identities_only,
-                     args.strict_hostkey_checking,
-                     args.proxy)
+                     args['--keydir'],
+                     args['--ssh-key-name'],
+                     args['--no-identities-only'],
+                     args['--strict-hostkey-checking'],
+                     args['--proxy'])
 
 
 if __name__ == '__main__':
-    main()
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    arguments = docopt(__doc__, version='aws_ssh_config 0.2')
+    logging.debug("Command line arguments: {0}".format(arguments))
+    main(arguments)
+
