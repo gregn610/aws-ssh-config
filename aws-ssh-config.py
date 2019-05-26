@@ -130,12 +130,12 @@ def print_config(ami_image_id, host_id, instance_id, image_id, keyname,
 def process_aws(args_profile,
                 args_tags_filter,
                 args_region,
-                args_white_list_regions,
+                args_whitelist_regions,
                 args_user,
                 args_default_user,
-                args_private,
-                args_prefix,
-                args_postfix):
+                args_private_ip,
+                args_host_prefix,
+                args_host_postfix):
     """
     :return: a list of (ami_image_id, host_id, instance_id, image_id, key_name, ip_addr) tuples
     """
@@ -153,8 +153,8 @@ def process_aws(args_profile,
         regions = boto3.client('ec2').describe_regions()['Regions']
 
     for region in regions:
-        if (args_white_list_regions
-                and region['RegionName'] not in args_white_list_regions.split(',')):
+        if (args_whitelist_regions
+                and region['RegionName'] not in args_whitelist_regions.split(',')):
             continue
         if region['RegionName'] in BLACKLISTED_REGIONS:
             continue
@@ -172,14 +172,6 @@ def process_aws(args_profile,
                     continue  # Not interested in instances without SSH keys
 
                 instances[instance['InstanceId']] = instance
-
-                host_id = generate_id(instance, args_tags_filter, args_region)
-
-                if host_id not in counts_total:
-                    counts_total[host_id] = 0
-                    counts_incremental[host_id] = 0
-
-                counts_total[host_id] += 1
 
                 if args_user:
                     ami_usernames[instance['ImageId']] = args_user
@@ -207,16 +199,14 @@ def process_aws(args_profile,
                                 instance['ImageId']
                             ] = args_default_user
                             if args_default_user is None:
-                                image_label = image[
-                                    'Images'
-                                ][0][
-                                    'ImageId'] if len(image['Images']) and image['Images'][0] is not None else launch_request[
-                                    'Instances'][0]['ImageId']
-                                sys.stderr.write(
-                                    'Can\'t lookup user for AMI \'' + image_label + '\', add a rule to the script\n')
+                                if len(image['Images']) and image['Images'][0] is not None:
+                                    image_label = image['Images'][0]['ImageId']
+                                else:
+                                    image_label = launch_request['Instances'][0]['ImageId']
+                                logging.warning('Lookup user for AMI \'' + image_label + '\' failed, add a rule to the script\n')
 
     for k, instance in instances.items():
-        if args_private:
+        if args_private_ip:
             if instance['PrivateIpAddress']:
                 ip_addr = instance['PrivateIpAddress']
         else:
@@ -234,11 +224,17 @@ def process_aws(args_profile,
 
         host_id = generate_id(instance, args_tags_filter, args_region)
 
+        if host_id not in counts_total:
+            counts_total[host_id] = 0
+            counts_incremental[host_id] = 0
+
+        counts_total[host_id] += 1
+
         if counts_total[host_id] != 1:
             counts_incremental[host_id] += 1
             host_id += '-' + str(counts_incremental[host_id])
 
-        ssh_config_id = args_prefix + host_id + args_postfix
+        ssh_config_id = args_host_prefix + host_id + args_host_postfix
         ssh_config_id = ssh_config_id.replace(' ', '_').lower()  # get rid of spaces
 
         ret.append(
