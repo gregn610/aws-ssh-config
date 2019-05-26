@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-'''aws_ssh_config
+"""aws_ssh_config
 Generate an SSH config file from AWS instances
 
 Usage:
@@ -16,17 +16,20 @@ Options:
   --private                   Use private IP addresses (public are used by default)
   --profile PROFILE           Specify AWS credential profile to use
   --proxy PROXY               Specify a bastion host for ProxyCommand
-  --region                    Append the region name at the end of the concatenation
+  --region                    Append the region name at the end of the host
   --ssh-key-name SSH_KEY_NAME Override the ssh key to use
   --strict-hostkey-checking   Do not include StrictHostKeyChecking=no in ssh config
   --tags TAGS                 Comma-separated list of tag names to be considered for concatenation. If omitted, all tags will be used
   --user USER                 Override the ssh username for all hosts
-  --whitelist-region WHITE_LIST_REGION[,WHITE_LIST_REGION ...] Comma separated regions to be included. If omitted, all regions are considered
+  --whitelist-region WHITELIST_REGION[,WHITELIST_REGION ...] Comma separated regions to be included. If omitted, all regions are considered
 
+Examples:
+    aws-ssh-config.py --whitelist-region=eu-west-1,eu-west-2
 
-'''
+"""
+#ToDo: Maybe go with repeatable options rather than once comma separated for tags, whitelist & blacklist
+
 import os
-
 from docopt import docopt
 import re
 import sys
@@ -56,12 +59,12 @@ BLACKLISTED_REGIONS = [
 
 
 
-def generate_id(instance, tags_filter, region):
+def generate_id(instance, tags_filter, add_region_suffix):
     """
     Use instance details to build the SSH host name
     :param instance:
     :param tags_filter:
-    :param region:
+    :param add_region_suffix:
     :return:
     """
     instance_id = ''
@@ -87,9 +90,8 @@ def generate_id(instance, tags_filter, region):
     if not instance_id:
         instance_id = instance['InstanceId']
 
-    if region:
-        instance_id += '-' + instance[
-            'Instances'][0]['Placement']['AvailabilityZone']
+    if add_region_suffix:
+        instance_id += '-' + instance['Placement']['AvailabilityZone']
 
     return instance_id
 
@@ -202,8 +204,8 @@ def process_aws(args_profile,
                                 if len(image['Images']) and image['Images'][0] is not None:
                                     image_label = image['Images'][0]['ImageId']
                                 else:
-                                    image_label = launch_request['Instances'][0]['ImageId']
-                                logging.warning('Lookup user for AMI \'' + image_label + '\' failed, add a rule to the script\n')
+                                    image_label = launch_request[instance['ImageId']]
+                                logging.warning("Lookup user for AMI '{0}' failed, add a rule to the script".format(image_label))
 
     for k, instance in instances.items():
         if args_private_ip:
