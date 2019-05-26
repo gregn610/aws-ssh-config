@@ -194,8 +194,8 @@ def process_aws(args_profile,
                 if instance['State']['Name'] != 'running':
                     continue
 
-                if instance.get('KeyName', None) is None:  # ToDo: Just dropping tagless instances ???
-                    continue
+                if instance.get('KeyName', None) is None:
+                    continue  # Not interested in instances without SSH keys
 
                 instances[instance['InstanceId']] = instance
 
