@@ -82,9 +82,17 @@ class TestGenerateId(unittest.TestCase):
         actual = aws_ssh_config.generate_id(self.basic_instance, 'Platform,Name,Product', False)
         self.assertEqual(expected, actual)
 
-    def test_no_tags(self):
+    def test_instance_no_tags(self):
         expected = 'i-0000ce0e00000000f-eu-west-1a'
-
         actual = aws_ssh_config.generate_id(self.no_tags, 'Platform,Name,Product', True)
         self.assertEqual(expected, actual)
 
+    def test_no_tags_filter(self):
+        expected = 'i-0000ce0e00000000f-eu-west-1a'
+        actual = aws_ssh_config.generate_id(self.no_tags, None, True)
+        self.assertEqual(expected, actual)
+
+    def test_no_tags_filter2(self):
+        expected = 'i-0000ce0e00000000f-eu-west-1a'
+        actual = aws_ssh_config.generate_id(self.no_tags, '', True)
+        self.assertEqual(expected, actual)
