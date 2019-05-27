@@ -67,7 +67,7 @@ class TestCommandLine(unittest.TestCase):
                      '--region-suffix': False,
                      '--ssh-key-name': None,
                      '--strict-hostkey-checking': False,
-                     '--tags': None,
+                     '--tags': 'Name,',
                      '--user': None,
                      '--whitelist-region': None}
         actual = docopt(self.doc_string, test_sysv)

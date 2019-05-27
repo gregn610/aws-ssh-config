@@ -19,7 +19,7 @@ Options:
   --region-suffix             Append the region name at the end of the host
   --ssh-key-name SSH_KEY_NAME Override the ssh key to use
   --strict-hostkey-checking   Do not include StrictHostKeyChecking=no in ssh config
-  --tags TAGS                 Comma-separated list of tag names to be considered for concatenation. If omitted, all tags will be used
+  --tags TAGS []              Comma-separated list of tag names to be considered for concatenation [default: Name,]
   --user USER                 Override the ssh username for all hosts
   --whitelist-region WHITELIST_REGION[,WHITELIST_REGION ...] Comma separated regions to be included. If omitted, all regions are considered
 
