@@ -22,6 +22,7 @@ Options:
   --tags TAGS []              Comma-separated list of tag names to be considered for concatenation [default: Name,]
   --user USER                 Override the ssh username for all hosts
   --whitelist-region WHITELIST_REGION[,WHITELIST_REGION ...] Comma separated regions to be included. If omitted, all regions are considered
+  --superputty                 Output superputty XML rather than SSH config
 
 Examples:
     aws_ssh_config.py --whitelist-region=eu-west-1,eu-west-2
@@ -124,6 +125,27 @@ def print_config(instance_id, host_id, ip_addr, host_user, key_dir, ssh_key_name
     if proxy:
         print('    ProxyCommand ssh ' + proxy + ' -W %h:%p')
     print('')
+
+
+def print_superputty(config_list):
+    """
+    Prints the line for a superputty config file 
+    :return: 
+    """
+    logging.debug('print_superputty()')
+    port = 22
+    folder = 'other'
+    sorted_config_list = sorted(config_list)
+    for (host_id, host_user, instance_id, image_id, key_name, ip_addr, ) in sorted_config_list:
+        if '-' in host_id:
+            folder = host_id.split('-')[0]
+        else:
+            folder = 'other'
+
+        print('<SessionData SessionId="{folder}/{host_id}" SessionName="{host_id}" ImageKey="computer" Host="{ip_addr}" Port="{port}" Proto="SSH" PuttySession="main_ssh_key" Username="{host_user}" ExtraArgs="" SPSLFileName="" RemotePath="" LocalPath=""/>'.format(
+            folder=folder, host_id=host_id, ip_addr=ip_addr, port=port, host_user=host_user,
+        )
+    )
 
 
 def process_aws(args_profile, args_tags_filter, args_region_suffix, args_whitelist_regions, args_user,
@@ -260,9 +282,13 @@ def main(args):
                               args['--user'], args['--default-user'], args['--private'], args['--prefix'],
                               args['--postfix'])
 
-    for (ssh_config_id, ami_image_id, instance_id, image_id, key_name, ip_addr) in config_list:
-        print_config(instance_id, ssh_config_id, ip_addr, ami_image_id, args['--key-dir'], args['--ssh-key-name'],
-                     key_name, args['--no-identities-only'], args['--strict-hostkey-checking'], args['--proxy'])
+
+    if args['--superputty']:
+        print_superputty(config_list)
+    else:
+        for (ssh_config_id, host_user, instance_id, image_id, key_name, ip_addr) in sorted(config_list):
+            print_config(instance_id, ssh_config_id, ip_addr, host_user, args['--key-dir'], args['--ssh-key-name'],
+                 key_name, args['--no-identities-only'], args['--strict-hostkey-checking'], args['--proxy'])
 
 
 if __name__ == '__main__':
