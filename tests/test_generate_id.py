@@ -2,7 +2,7 @@ import unittest
 import datetime
 from dateutil.tz import tzutc
 
-aws_ssh_config = __import__("aws-ssh-config")
+import aws_ssh_config
 
 class TestGenerateId(unittest.TestCase):
     def setUp(self):

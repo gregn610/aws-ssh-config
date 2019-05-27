@@ -4,7 +4,7 @@
 Generate an SSH config file from AWS instances
 
 Usage:
-    aws-ssh-config.py [options]
+    aws_ssh_config.py [options]
 
 Options:
   -h, --help                  show this help message and exit
@@ -24,7 +24,7 @@ Options:
   --whitelist-region WHITELIST_REGION[,WHITELIST_REGION ...] Comma separated regions to be included. If omitted, all regions are considered
 
 Examples:
-    aws-ssh-config.py --whitelist-region=eu-west-1,eu-west-2
+    aws_ssh_config.py --whitelist-region=eu-west-1,eu-west-2
 
 """
 #ToDo: Maybe go with repeatable options rather than once comma separated for tags, whitelist & blacklist
