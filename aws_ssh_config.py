@@ -126,6 +126,12 @@ def print_config(instance_id, host_id, ip_addr, host_user, key_dir, ssh_key_name
         print('    ProxyCommand ssh ' + proxy + ' -W %h:%p')
     print('')
 
+def lazy_escape(str):
+    return str.replace("&", "&amp;")\
+        .replace("<", "&lt;")\
+        .replace(">", "&gt;")\
+        .replace("\"", "&quot;")\
+        .replace("--", "-")
 
 def print_superputty(config_list):
     """
@@ -136,6 +142,14 @@ def print_superputty(config_list):
     port = 22
     folder = 'other'
     sorted_config_list = sorted(config_list)
+    print('''<?xml version="1.0" encoding="utf-8"?>''')
+    print('''<ArrayOfSessionData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">''')
+    print('<!-- ################################################################################# -->')
+    print('<!-- # Generated on {0} -->'.format(time.asctime(time.localtime(time.time()))))
+    print('<!-- ' + lazy_escape('''# Command line(without double hyphens because XML): {0} '''.format(' '.join(sys.argv))) + '-->')
+    print('<!-- ################################################################################# -->')
+    print('')
+
     for (host_id, host_user, instance_id, image_id, key_name, ip_addr, ) in sorted_config_list:
         if '-' in host_id:
             folder = host_id.split('-')[0]
@@ -146,6 +160,7 @@ def print_superputty(config_list):
             folder=folder, host_id=host_id, ip_addr=ip_addr, port=port, host_user=host_user,
         )
     )
+    print('''</ArrayOfSessionData>''')
 
 
 def process_aws(args_profile, args_tags_filter, args_region_suffix, args_whitelist_regions, args_user,
